@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MLBB Profile Tracker</title>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',sans-serif;background:#0d0f1a;color:#e0e6f0;padding:20px;}
+h1{text-align:center;color:#f0c040;margin-bottom:5px;}
+.subtitle{text-align:center;color:#888;margin-bottom:20px;font-size:12px;}
+
+.card{background:#161826;border:1px solid #2a2d45;border-radius:12px;padding:16px;margin-bottom:16px;}
+.info-row{display:flex;justify-content:space-between;margin-bottom:8px;}
+.rank-badge,.goal-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold;color:#fff;}
+.rank-badge{background:#7c3aed;}
+.goal-badge{background:#059669;}
+
+.progress-bar{background:#1e2235;border-radius:20px;height:10px;overflow:hidden;}
+.progress-fill{background:linear-gradient(90deg,#7c3aed,#f0c040);height:100%;}
+
+input,select{width:100%;margin-bottom:8px;padding:8px;background:#1e2235;border:1px solid #3a3f5c;color:#fff;border-radius:8px;}
+.btn{width:100%;padding:10px;background:#f0c040;border:none;border-radius:8px;font-weight:bold;cursor:pointer;}
+.save-msg{font-size:12px;color:#10b981;text-align:center;height:16px;}
+
+.hero-chip{display:inline-flex;gap:5px;background:#1e2235;border:1px solid #3a3f5c;padding:4px 8px;border-radius:8px;margin:2px;}
+.xbtn{cursor:pointer;color:#888;}
+.xbtn:hover{color:red;}
+
+.note-item{background:#1e2235;padding:8px;margin-bottom:6px;border-left:3px solid #f0c040;position:relative;}
+.note-item .xbtn{position:absolute;right:6px;top:5px;}
+.collapsible{display:none;}
+.collapsible.open{display:block;}
+</style>
+</head>
+
+<body>
+
+<h1>⚔️ MLBB PROFILE</h1>
+<p class="subtitle">Your ranked journey tracker</p>
+
+<div class="card">
+  <div class="info-row">
+    <span>Rank</span>
+    <span class="rank-badge" id="displayRank">Epic — 1 Star</span>
+  </div>
+
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill" style="width:14%"></div>
+  </div>
+
+  <input id="rankInput" placeholder="Rank"/>
+  <input id="starsInput" type="number" placeholder="Stars"/>
+  <button class="btn" id="btnUpdateRank">Update</button>
+  <div class="save-msg" id="rankMsg"></div>
+</div>
+
+<div class="card">
+  <h3>Heroes</h3>
+  <div id="lane-exp"></div>
+
+  <input id="heroName" placeholder="Hero name"/>
+  <select id="heroLane">
+    <option value="">Lane</option>
+    <option value="exp">EXP</option>
+  </select>
+
+  <select id="heroMastery">
+    <option value="">Mastery</option>
+    <option value="Main">Main</option>
+    <option value="Learning">Learning</option>
+  </select>
+
+  <button class="btn" id="btnAddHero">Add Hero</button>
+  <div class="save-msg" id="heroMsg"></div>
+</div>
+
+<div class="card">
+  <h3>Notes <span id="toggleNotes" style="cursor:pointer;">+</span></h3>
+  <div id="noteList"></div>
+
+  <div id="noteAdd" class="collapsible">
+    <input id="noteInput" placeholder="Add note"/>
+    <button class="btn" id="btnAddNote">Save</button>
+    <div class="save-msg" id="noteMsg"></div>
+  </div>
+</div>
+
+<script>
+async function storeGet(k){return JSON.parse(localStorage.getItem(k));}
+async function storeSet(k,v){localStorage.setItem(k,JSON.stringify(v));}
+
+var state={
+ rank:'Epic — 1 Star',
+ stars:1,
+ maxStars:7,
+ heroes:[],
+ notes:[]
+};
+
+function render(){
+ document.getElementById('displayRank').textContent=state.rank;
+ let pct=Math.min(100,(state.stars/state.maxStars)*100);
+ document.getElementById('progressFill').style.width=pct+'%';
+ renderHeroes();
+ renderNotes();
+}
+
+function renderHeroes(){
+ let el=document.getElementById('lane-exp');
+ el.innerHTML='';
+ state.heroes.forEach((h,i)=>{
+  let chip=document.createElement('span');
+  chip.className='hero-chip';
+  chip.innerHTML=h.name+' ('+h.mastery+') <span class="xbtn">✕</span>';
+  chip.querySelector('.xbtn').onclick=()=>deleteHero(i);
+  el.appendChild(chip);
+ });
+}
+
+function renderNotes(){
+ let el=document.getElementById('noteList');
+ el.innerHTML='';
+ state.notes.forEach((n,i)=>{
+  let div=document.createElement('div');
+  div.className='note-item';
+  div.innerHTML=n+' <span class="xbtn">✕</span>';
+  div.querySelector('.xbtn').onclick=()=>deleteNote(i);
+  el.appendChild(div);
+ });
+}
+
+function flash(id,msg='✓ Saved'){
+ let el=document.getElementById(id);
+ el.textContent=msg;
+ setTimeout(()=>el.textContent='',2000);
+}
+
+document.getElementById('btnUpdateRank').onclick=async()=>{
+ let r=rankInput.value;
+ let s=parseInt(starsInput.value);
+ if(r) state.rank=r;
+ if(!isNaN(s)) state.stars=s;
+ await storeSet('mlbb',state);
+ render();
+ flash('rankMsg');
+};
+
+document.getElementById('btnAddHero').onclick=async()=>{
+ let name=heroName.value;
+ let lane=heroLane.value;
+ let mastery=heroMastery.value;
+ if(!name||!lane||!mastery){flash('heroMsg','Fill all');return;}
+ state.heroes.push({name,lane,mastery});
+ await storeSet('mlbb',state);
+ render();
+ flash('heroMsg');
+};
+
+document.getElementById('btnAddNote').onclick=async()=>{
+ let note=noteInput.value;
+ if(!note){flash('noteMsg','Enter note');return;}
+ state.notes.push(note);
+ await storeSet('mlbb',state);
+ render();
+ flash('noteMsg');
+};
+
+document.getElementById('toggleNotes').onclick=()=>{
+ noteAdd.classList.toggle('open');
+};
+
+async function deleteHero(i){
+ state.heroes.splice(i,1);
+ await storeSet('mlbb',state);
+ render();
+}
+
+async function deleteNote(i){
+ state.notes.splice(i,1);
+ await storeSet('mlbb',state);
+ render();
+}
+
+(async function(){
+ let saved=await storeGet('mlbb');
+ if(saved) state=saved;
+ render();
+})();
+</script>
+
+</body>
+</html>
